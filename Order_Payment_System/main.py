@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-
 class Order:
 
     def __init__(self):
@@ -8,124 +7,106 @@ class Order:
         self.prices=[]
         self.status="open"
 
-    def add_item(self, name, quantity, price):
-        self.items.append(name)
+    def add_item(self,item, quantity,price):
+        self.items.append(item)
         self.quantities.append(quantity)
         self.prices.append(price)
 
     def total_price(self):
         total=0
-        for i in range(len(self.prices)):
+        for i in range(len(self.items)):
             total+=self.quantities[i]*self.prices[i]
         return total
 
-class Authorizer (ABC):
-
+# abstract class are mainly about dependency inversion 
+# they are also handy with Liskov substitution and open/closed principle   
+class PaymentProcessor(ABC):
     @abstractmethod
-    def is_authorized(self)->bool:
+    def pay(self,order:Order):
+         pass
+    
+class Authorizer(ABC):
+    @abstractmethod
+    def is_authorized(self):
         pass
 
 class AuthorizerSMS(Authorizer):
-
     def __init__(self):
         self.authorized=False
 
-    def verify_code(self,code):
-        print(f"Verifying SMS code: {code}")
+    def confirm_authorization(self,code):
+        print(f"Authorized with the SMS code: {code}")
         self.authorized=True
-    
-    def is_authorized(self):
-        return self.authorized
-    
-class AuthorizerGoogle(Authorizer):
 
-    def __init__(self):
-        self.authorized=False
-
-    def verify_code(self,code):
-        print(f"Verifying Google auth code: {code}")
-        self.authorized=True
-    
     def is_authorized(self):
         return self.authorized
 
-class AuthorizerNotaRobot(Authorizer):
-    
+class NotARobot(Authorizer):
     def __init__(self):
         self.authorized=False
 
     def not_a_robot(self):
-        print(f"Verifying: Not a robot")
+        print("Confirming that I am not a robot.")
         self.authorized=True
-    
+
     def is_authorized(self):
         return self.authorized
     
-class PaymentProcessor (ABC):
-    @abstractmethod
-    def pay(self, order):
-        pass
+class PaymentProcessorDebit(PaymentProcessor):
+    def __init__(self, security_code):
+        self.security_code=security_code
+        self.verified=False
 
-class DebitPaymentProcessor(PaymentProcessor):
+    def pay(self,order:Order):
+        print(f"Processing payment method: debit")
+        print(f"Verifying the security code:{self.security_code}")
+        order.status="closed"
 
+class PaymentProcessorCredit(PaymentProcessor):
+    # composition and multi level inheritance are about interface segregation 
     def __init__(self, security_code, authorizer:Authorizer):
         self.security_code=security_code
-        self.verified=False
         self.authorizer=authorizer
 
-    def pay(self,order):
+    def pay(self,order:Order):
         if not self.authorizer.is_authorized():
-            raise Exception("Not authorized")
-        print("Processing debit payment type")
-        print(f"Verifying security code: {self.security_code}")
-        order.status="paid"
+            raise Exception("Not authorized.")
+        print(f"Processing payment method: credit")
+        print(f"Verifying the security code: {self.security_code}")
+        order.status="closed"  
 
-class CreditPaymentProcessor(PaymentProcessor):
-
-    def __init__(self, security_code,authorizer:Authorizer):
-        self.security_code=security_code
+# adding a new payment method by adding a new subclass
+class PaymentProcessorPaypal(PaymentProcessor):
+    def __init__(self, email, authorizer:Authorizer):
+        self.email=email
         self.authorizer=authorizer
-
-    def pay(self,order):
+    
+    def pay(self,order:Order):
         if not self.authorizer.is_authorized():
-            raise Exception("Not authorized")
-        print("Processing credit payment type")
-        print(f"Verifying security code: {self.security_code}")
-        order.status="paid"
+            raise Exception("Not authorized.")
+        print(f"Processing payment method: paypal")
+        print(f"Verifying the security code::{self.email}")
+        order.status="closed"
+            
 
-class PaypalPaymentProcessor(PaymentProcessor):
-
-    def __init__(self, email_address,authorizer:Authorizer):
-        self.email_address=email_address
-        self.verified=False
-        self.authorizer=authorizer
-
-    def pay(self,order):
-        if not self.authorizer.is_authorized():
-            raise Exception("Not authorized")
-        print("Processing Paypal payment type")
-        print(f"Verifying security code: {self.email_address}")
-        order.status="paid"
-        
 if __name__=='__main__':
-    order = Order()
-    order.add_item("Keyboard", 1, 50)
-    order.add_item("SSD", 1, 150)
-    order.add_item("USB cable", 2, 5)
-    print(order.total_price())
+    
+    order=Order()
+    order.add_item("mouse",3,100)
+    order.add_item("screen",1,900)
+    order.add_item("antivirus",1,200)
+    print(f"Total cost: {order.total_price()}")
+    print(f"Order status:{order.status}")
+    print('\n')
 
-    authorizer=AuthorizerSMS()
-    authorizer.verify_code("037284")
-    processor=DebitPaymentProcessor("1234",authorizer)
-    processor.pay(order)
+    try:
+        # authorizer=AuthorizerSMS()
+        # authorizer.confirm_authorization("2234")
+        authorizer=NotARobot()
+        authorizer.not_a_robot()
+        processor=PaymentProcessorCredit("8765", authorizer)
+        processor.pay(order)
+    except Exception as e:
+        print(e)
 
-
-    authorizer=AuthorizerGoogle()
-    authorizer.verify_code("454096")
-    processor=CreditPaymentProcessor("5678",authorizer)
-    processor.pay(order)
-
-    authorizer=AuthorizerNotaRobot()
-    #authorizer.not_a_robot()
-    processor=PaypalPaymentProcessor("rctn@mail.com", authorizer)
-    processor.pay(order)
+    print(f"Order status:{order.status}")
